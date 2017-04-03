@@ -13,6 +13,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.StringRes;
 import android.support.design.widget.FloatingActionButton;
@@ -38,6 +39,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 import java.util.Set;
 
 
@@ -76,7 +80,14 @@ public class MainActivity extends AppCompatActivity implements
     private int mCurrentFlash;
 
     private SensorManager sensorManager;
+    private long lastUpdate = -1;
+    private long lastStopTime;
+    private boolean moving = true;
+    private boolean notmoving = false;
+    private boolean pictureTaken = false;
 
+    private List<Handler> handlerList;
+    private List<Runnable> runnableList;
 
     private CameraView mCameraView;
 
@@ -118,10 +129,18 @@ public class MainActivity extends AppCompatActivity implements
         if (actionBar != null) {
             actionBar.setDisplayShowTitleEnabled(false);
         }
+
+        //ask fo write permission
         if(Build.VERSION.SDK_INT >= 23) {
             requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 0);
         }
 
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        //registering sensorManager
+        sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION), SensorManager.SENSOR_DELAY_NORMAL);
+        lastUpdate = System.currentTimeMillis();
+        handlerList = new ArrayList<Handler>();
+        runnableList = new ArrayList<Runnable>();
     }
 
     @Override
@@ -142,11 +161,17 @@ public class MainActivity extends AppCompatActivity implements
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA},
                     REQUEST_CAMERA_PERMISSION);
         }
+
+        //registering sensorManager
+        sensorManager.registerListener(this, sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION), SensorManager.SENSOR_DELAY_NORMAL);
     }
 
     @Override
     protected void onPause() {
         mCameraView.stop();
+
+        sensorManager.unregisterListener(this);
+
         super.onPause();
     }
 
@@ -327,7 +352,72 @@ public class MainActivity extends AppCompatActivity implements
 
     @Override
     public void onSensorChanged(SensorEvent event) {
+        if(event.sensor.getType() == Sensor.TYPE_LINEAR_ACCELERATION) {
+            getAccelerometer(event);
+        }
 
+    }
+
+    private void getAccelerometer(SensorEvent event) {
+        float[] values = event.values;
+
+        float x = values[0];
+        float y = values[1];
+        float z = values[2];
+
+        float accelationSquareRoot = (x * x + y * y + z * z)
+                / (SensorManager.GRAVITY_EARTH * SensorManager.GRAVITY_EARTH);
+        long actualTime = (new Date()).getTime()
+                + (event.timestamp - System.nanoTime()) / 1000000L;
+        if(lastUpdate == -1) {
+            lastUpdate = actualTime;
+        }
+
+        if(Math.abs(x) < 0.01 && Math.abs(y) < 0.01 && Math.abs(z) < 0.01) {
+            if(moving) {
+                lastUpdate = actualTime;
+                notmoving = false;
+            } else {//moving has stopped
+                if(actualTime - lastUpdate > 4000) {
+                    Log.d("TimeGap", String.valueOf(actualTime - lastUpdate));
+                    Log.d("lastUpdate", String.valueOf(lastUpdate));
+                    Log.d("actualTime", String.valueOf(actualTime));
+
+                    //Toast.makeText(this, "Device has stopped!", Toast.LENGTH_SHORT)
+                    //        .show();
+                    if(!notmoving && !pictureTaken) { // entered notmoving state for the first time
+                        Log.d("Stopped:", "not moving!");
+
+                        takePictureProcess();
+                        pictureTaken = true;
+                    }
+                    notmoving = true;
+                }
+
+            }
+
+            moving = false;
+
+        } else {
+            moving = true;
+        }
+
+        //Log.d("XYZ:", String.valueOf(x) + " " + String.valueOf(y) + " " + String.valueOf(z));
+        if (accelationSquareRoot >= 2) //
+        {
+            if (actualTime - lastUpdate < 200) {
+                return;
+            }
+            lastUpdate = actualTime;
+            Toast.makeText(this, "Device was shuffled", Toast.LENGTH_SHORT)
+                    .show();
+            /*if (color) {
+                view.setBackgroundColor(Color.GREEN);
+            } else {
+                view.setBackgroundColor(Color.RED);
+            }
+            color = !color;*/
+        }
     }
 
     @Override
@@ -384,6 +474,55 @@ public class MainActivity extends AppCompatActivity implements
                     .create();
         }
 
+    }
+
+    private void takePictureProcess() {
+        Runnable first = new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(MainActivity.this, "3", Toast.LENGTH_SHORT)
+                        .show();
+            }
+        };
+        Runnable second = new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(MainActivity.this, "2", Toast.LENGTH_SHORT)
+                        .show();
+            }
+        };
+        Runnable third = new Runnable() {
+            @Override
+            public void run() {
+                Toast.makeText(MainActivity.this, "1", Toast.LENGTH_SHORT)
+                        .show();
+            }
+        };
+        Runnable takePicture = new Runnable() {
+            @Override
+            public void run() {
+                mCameraView.takePicture();
+                lastUpdate += 60000;
+            }
+        };
+        delayStart(first, 0);
+        delayStart(second, 1000);
+        delayStart(third, 2000);
+        delayStart(takePicture, 3000);
+
+    }
+
+    private void delayStart(Runnable runnable, int millis) {
+        Handler myHandler = new Handler(Looper.getMainLooper());
+        myHandler.postDelayed(runnable, millis);
+        runnableList.add(runnable);
+        handlerList.add(myHandler);
+    }
+
+    private void cancelTakePictureProcess() {
+        for(int i = 0; i < handlerList.size(); ++i) {
+            handlerList.get(i).removeCallbacks(runnableList.get(i));
+        }
     }
 
 }
