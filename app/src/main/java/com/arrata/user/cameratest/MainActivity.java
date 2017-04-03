@@ -76,7 +76,7 @@ public class MainActivity extends AppCompatActivity implements
     private int mCurrentFlash;
 
     private SensorManager sensorManager;
-    
+
 
     private CameraView mCameraView;
 
