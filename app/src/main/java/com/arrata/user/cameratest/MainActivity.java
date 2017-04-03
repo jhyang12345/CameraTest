@@ -4,6 +4,10 @@ import android.Manifest;
 import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -43,7 +47,7 @@ import java.util.Set;
  */
 public class MainActivity extends AppCompatActivity implements
         ActivityCompat.OnRequestPermissionsResultCallback,
-        AspectRatioFragment.Listener {
+        AspectRatioFragment.Listener, SensorEventListener {
 
     private static final String TAG = "MainActivity";
 
@@ -70,6 +74,9 @@ public class MainActivity extends AppCompatActivity implements
     };
 
     private int mCurrentFlash;
+
+    private SensorManager sensorManager;
+    
 
     private CameraView mCameraView;
 
@@ -317,6 +324,16 @@ public class MainActivity extends AppCompatActivity implements
         }
 
     };
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+    }
 
     public static class ConfirmationDialogFragment extends DialogFragment {
 
